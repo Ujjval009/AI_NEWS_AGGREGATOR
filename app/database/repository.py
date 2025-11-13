@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 from typing import List, Optional, Dict, Any
 from sqlalchemy.orm import Session
 from .models import YouTubeVideo, OpenAIArticle, AnthropicArticle, Digest
@@ -215,4 +215,23 @@ class Repository:
         self.session.add(digest)
         self.session.commit()
         return digest
+    
+    def get_recent_digests(self, hours: int = 24) -> List[Dict[str, Any]]:
+        cutoff_time = datetime.now(timezone.utc) - timedelta(hours=hours)
+        digests = self.session.query(Digest).filter(
+            Digest.created_at >= cutoff_time
+        ).order_by(Digest.created_at.desc()).all()
+        
+        return [
+            {
+                "id": d.id,
+                "article_type": d.article_type,
+                "article_id": d.article_id,
+                "url": d.url,
+                "title": d.title,
+                "summary": d.summary,
+                "created_at": d.created_at
+            }
+            for d in digests
+        ]
 
