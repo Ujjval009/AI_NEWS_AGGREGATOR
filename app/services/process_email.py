@@ -75,19 +75,19 @@ if __name__ == "__main__":
     from pathlib import Path
     
     root_path = Path(__file__).parent.parent.parent
-    email_module_path = root_path / "email.py"
+    email_module_path = root_path / "app" / "email.py"
     
     spec = importlib.util.spec_from_file_location("email_sender", email_module_path)
     email_sender = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(email_sender)
     
     send_email = email_sender.send_email
-    markdown_to_html = email_sender.markdown_to_html
+    digest_to_html = email_sender.digest_to_html
     
     try:
         result = generate_email_digest(hours=24, top_n=10)
         markdown_content = result.to_markdown()
-        html_content = markdown_to_html(markdown_content)
+        html_content = digest_to_html(result)
         
         subject = f"Daily AI News Digest - {result.introduction.greeting.split('for ')[-1] if 'for ' in result.introduction.greeting else 'Today'}"
         
