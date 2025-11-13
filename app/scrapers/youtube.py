@@ -54,6 +54,8 @@ class YouTubeScraper:
         videos = []
         
         for entry in feed.entries:
+            if "/shorts/" in entry.link:
+                continue
             published_time = datetime(*entry.published_parsed[:6], tzinfo=timezone.utc)
             if published_time >= cutoff_time:
                 video_id = self._extract_video_id(entry.link)
