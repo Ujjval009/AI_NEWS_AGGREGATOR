@@ -1,16 +1,13 @@
 import logging
-import sys
-from pathlib import Path
 from dotenv import load_dotenv
 
 load_dotenv()
-
-sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from app.agent.email_agent import EmailAgent, RankedArticleDetail, EmailDigestResponse
 from app.agent.curator_agent import CuratorAgent
 from app.profiles.user_profile import USER_PROFILE
 from app.database.repository import Repository
+from app.services.email import send_email, digest_to_html
 
 logging.basicConfig(
     level=logging.INFO,
@@ -69,23 +66,9 @@ def generate_email_digest(hours: int = 24, top_n: int = 10) -> EmailDigestRespon
     return email_digest
 
 
-if __name__ == "__main__":
-    import sys
-    import importlib.util
-    from pathlib import Path
-    
-    root_path = Path(__file__).parent.parent.parent
-    email_module_path = root_path / "app" / "email.py"
-    
-    spec = importlib.util.spec_from_file_location("email_sender", email_module_path)
-    email_sender = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(email_sender)
-    
-    send_email = email_sender.send_email
-    digest_to_html = email_sender.digest_to_html
-    
+def send_digest_email(hours: int = 24, top_n: int = 10) -> dict:
     try:
-        result = generate_email_digest(hours=24, top_n=10)
+        result = generate_email_digest(hours=hours, top_n=top_n)
         markdown_content = result.to_markdown()
         html_content = digest_to_html(result)
         
@@ -98,10 +81,25 @@ if __name__ == "__main__":
         )
         
         logger.info("Email sent successfully!")
-        print("\n=== Email Digest Sent ===")
-        print(f"Subject: {subject}")
-        print(f"Articles: {len(result.articles)}")
+        return {
+            "success": True,
+            "subject": subject,
+            "articles_count": len(result.articles)
+        }
     except ValueError as e:
-        logger.error(f"Error: {e}")
-        print(f"Error: {e}")
+        logger.error(f"Error sending email: {e}")
+        return {
+            "success": False,
+            "error": str(e)
+        }
+
+
+if __name__ == "__main__":
+    result = send_digest_email(hours=24, top_n=10)
+    if result["success"]:
+        print("\n=== Email Digest Sent ===")
+        print(f"Subject: {result['subject']}")
+        print(f"Articles: {result['articles_count']}")
+    else:
+        print(f"Error: {result['error']}")
 
