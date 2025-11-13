@@ -129,4 +129,18 @@ class Repository:
             self.session.commit()
             return True
         return False
+    
+    def get_youtube_videos_without_transcript(self, limit: Optional[int] = None) -> List[YouTubeVideo]:
+        query = self.session.query(YouTubeVideo).filter(YouTubeVideo.transcript.is_(None))
+        if limit:
+            query = query.limit(limit)
+        return query.all()
+    
+    def update_youtube_video_transcript(self, video_id: str, transcript: str) -> bool:
+        video = self.session.query(YouTubeVideo).filter_by(video_id=video_id).first()
+        if video:
+            video.transcript = transcript
+            self.session.commit()
+            return True
+        return False
 

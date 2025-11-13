@@ -1,9 +1,11 @@
 from datetime import datetime, timedelta, timezone
 from typing import List, Optional
+import os
 import feedparser
 from pydantic import BaseModel
 from youtube_transcript_api import YouTubeTranscriptApi
 from youtube_transcript_api._errors import TranscriptsDisabled, NoTranscriptFound
+from youtube_transcript_api.proxies import WebshareProxyConfig
 
 
 class Transcript(BaseModel):
@@ -21,7 +23,17 @@ class ChannelVideo(BaseModel):
 
 class YouTubeScraper:
     def __init__(self):
-        self.transcript_api = YouTubeTranscriptApi()
+        proxy_config = None
+        proxy_username = os.getenv("PROXY_USERNAME")
+        proxy_password = os.getenv("PROXY_PASSWORD")
+        
+        if proxy_username and proxy_password:
+            proxy_config = WebshareProxyConfig(
+                proxy_username=proxy_username,
+                proxy_password=proxy_password
+            )
+        
+        self.transcript_api = YouTubeTranscriptApi(proxy_config=proxy_config)
 
     def _get_rss_url(self, channel_id: str) -> str:
         return f"https://www.youtube.com/feeds/videos.xml?channel_id={channel_id}"
