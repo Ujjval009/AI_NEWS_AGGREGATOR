@@ -7,7 +7,7 @@ load_dotenv()
 
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
-from app.agent.email_agent import EmailAgent
+from app.agent.email_agent import EmailAgent, RankedArticleDetail, EmailDigestResponse
 from app.agent.curator_agent import CuratorAgent
 from app.profiles.user_profile import USER_PROFILE
 from app.database.repository import Repository
@@ -20,7 +20,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
-def generate_email_digest(hours: int = 24, top_n: int = 10) -> dict:
+def generate_email_digest(hours: int = 24, top_n: int = 10) -> EmailDigestResponse:
     curator = CuratorAgent(USER_PROFILE)
     email_agent = EmailAgent(USER_PROFILE)
     repo = Repository()
@@ -30,31 +30,34 @@ def generate_email_digest(hours: int = 24, top_n: int = 10) -> dict:
     
     if total == 0:
         logger.warning(f"No digests found from the last {hours} hours")
-        return {"error": "No digests available"}
+        raise ValueError("No digests available")
     
     logger.info(f"Ranking {total} digests for email generation")
     ranked_articles = curator.rank_digests(digests)
     
     if not ranked_articles:
         logger.error("Failed to rank digests")
-        return {"error": "Failed to rank articles"}
+        raise ValueError("Failed to rank articles")
     
     logger.info(f"Generating email digest with top {top_n} articles")
     
-    email_digest = email_agent.create_email_digest(
-        ranked_articles=[
-            {
-                "digest_id": a.digest_id,
-                "rank": a.rank,
-                "relevance_score": a.relevance_score,
-                "reasoning": a.reasoning,
-                "title": next((d["title"] for d in digests if d["id"] == a.digest_id), ""),
-                "summary": next((d["summary"] for d in digests if d["id"] == a.digest_id), ""),
-                "url": next((d["url"] for d in digests if d["id"] == a.digest_id), ""),
-                "article_type": next((d["article_type"] for d in digests if d["id"] == a.digest_id), "")
-            }
-            for a in ranked_articles
-        ],
+    article_details = [
+        RankedArticleDetail(
+            digest_id=a.digest_id,
+            rank=a.rank,
+            relevance_score=a.relevance_score,
+            reasoning=a.reasoning,
+            title=next((d["title"] for d in digests if d["id"] == a.digest_id), ""),
+            summary=next((d["summary"] for d in digests if d["id"] == a.digest_id), ""),
+            url=next((d["url"] for d in digests if d["id"] == a.digest_id), ""),
+            article_type=next((d["article_type"] for d in digests if d["id"] == a.digest_id), "")
+        )
+        for a in ranked_articles
+    ]
+    
+    email_digest = email_agent.create_email_digest_response(
+        ranked_articles=article_details,
+        total_ranked=len(ranked_articles),
         limit=top_n
     )
     
@@ -63,28 +66,42 @@ def generate_email_digest(hours: int = 24, top_n: int = 10) -> dict:
     logger.info(email_digest.introduction.greeting)
     logger.info(f"\n{email_digest.introduction.introduction}")
     
-    return {
-        "introduction": {
-            "greeting": email_digest.introduction.greeting,
-            "introduction": email_digest.introduction.introduction
-        },
-        "articles": email_digest.ranked_articles,
-        "total_ranked": len(ranked_articles),
-        "top_n": top_n
-    }
+    return email_digest
 
 
 if __name__ == "__main__":
-    result = generate_email_digest(hours=24, top_n=10)
+    import sys
+    import importlib.util
+    from pathlib import Path
     
-    if "error" in result:
-        print(f"Error: {result['error']}")
-    else:
-        print(f"\n=== Email Digest Generated ===")
-        print(f"\n{result['introduction']['greeting']}")
-        print(f"\n{result['introduction']['introduction']}")
-        print(f"\nTop {result['top_n']} articles:")
-        for article in result['articles']:
-            print(f"\n{article['rank']}. {article['title']} (Score: {article['relevance_score']:.1f}/10)")
-            print(f"   {article['summary'][:100]}...")
+    root_path = Path(__file__).parent.parent.parent
+    email_module_path = root_path / "email.py"
+    
+    spec = importlib.util.spec_from_file_location("email_sender", email_module_path)
+    email_sender = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(email_sender)
+    
+    send_email = email_sender.send_email
+    markdown_to_html = email_sender.markdown_to_html
+    
+    try:
+        result = generate_email_digest(hours=24, top_n=10)
+        markdown_content = result.to_markdown()
+        html_content = markdown_to_html(markdown_content)
+        
+        subject = f"Daily AI News Digest - {result.introduction.greeting.split('for ')[-1] if 'for ' in result.introduction.greeting else 'Today'}"
+        
+        send_email(
+            subject=subject,
+            body_text=markdown_content,
+            body_html=html_content
+        )
+        
+        logger.info("Email sent successfully!")
+        print("\n=== Email Digest Sent ===")
+        print(f"Subject: {subject}")
+        print(f"Articles: {len(result.articles)}")
+    except ValueError as e:
+        logger.error(f"Error: {e}")
+        print(f"Error: {e}")
 
