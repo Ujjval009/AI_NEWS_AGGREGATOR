@@ -29,6 +29,8 @@ class YouTubeScraper:
     def _extract_video_id(self, video_url: str) -> str:
         if "youtube.com/watch?v=" in video_url:
             return video_url.split("v=")[1].split("&")[0]
+        if "youtube.com/shorts/" in video_url:
+            return video_url.split("shorts/")[1].split("?")[0]
         if "youtu.be/" in video_url:
             return video_url.split("youtu.be/")[1].split("?")[0]
         return video_url
