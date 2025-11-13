@@ -1,7 +1,7 @@
 from datetime import datetime
-from typing import List, Optional
+from typing import List, Optional, Dict, Any
 from sqlalchemy.orm import Session
-from .models import YouTubeVideo, OpenAIArticle, AnthropicArticle
+from .models import YouTubeVideo, OpenAIArticle, AnthropicArticle, Digest
 from .connection import get_session
 
 
@@ -143,4 +143,76 @@ class Repository:
             self.session.commit()
             return True
         return False
+    
+    def get_articles_without_digest(self, limit: Optional[int] = None) -> List[Dict[str, Any]]:
+        articles = []
+        seen_ids = set()
+        
+        digests = self.session.query(Digest).all()
+        for d in digests:
+            seen_ids.add(f"{d.article_type}:{d.article_id}")
+        
+        youtube_videos = self.session.query(YouTubeVideo).filter(
+            YouTubeVideo.transcript.isnot(None),
+            YouTubeVideo.transcript != "__UNAVAILABLE__"
+        ).all()
+        for video in youtube_videos:
+            key = f"youtube:{video.video_id}"
+            if key not in seen_ids:
+                articles.append({
+                    "type": "youtube",
+                    "id": video.video_id,
+                    "title": video.title,
+                    "url": video.url,
+                    "content": video.transcript or video.description or ""
+                })
+        
+        openai_articles = self.session.query(OpenAIArticle).all()
+        for article in openai_articles:
+            key = f"openai:{article.guid}"
+            if key not in seen_ids:
+                articles.append({
+                    "type": "openai",
+                    "id": article.guid,
+                    "title": article.title,
+                    "url": article.url,
+                    "content": article.description or ""
+                })
+        
+        anthropic_articles = self.session.query(AnthropicArticle).filter(
+            AnthropicArticle.markdown.isnot(None)
+        ).all()
+        for article in anthropic_articles:
+            key = f"anthropic:{article.guid}"
+            if key not in seen_ids:
+                articles.append({
+                    "type": "anthropic",
+                    "id": article.guid,
+                    "title": article.title,
+                    "url": article.url,
+                    "content": article.markdown or article.description or ""
+                })
+        
+        if limit:
+            articles = articles[:limit]
+        
+        return articles
+    
+    def create_digest(self, article_type: str, article_id: str, url: str, title: str, summary: str) -> Optional[Digest]:
+        digest_id = f"{article_type}:{article_id}"
+        existing = self.session.query(Digest).filter_by(id=digest_id).first()
+        if existing:
+            return None
+        
+        digest = Digest(
+            id=digest_id,
+            article_type=article_type,
+            article_id=article_id,
+            url=url,
+            title=title,
+            summary=summary
+        )
+        self.session.add(digest)
+        self.session.commit()
+        return digest
 
