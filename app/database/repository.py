@@ -164,7 +164,8 @@ class Repository:
                     "id": video.video_id,
                     "title": video.title,
                     "url": video.url,
-                    "content": video.transcript or video.description or ""
+                    "content": video.transcript or video.description or "",
+                    "published_at": video.published_at
                 })
         
         openai_articles = self.session.query(OpenAIArticle).all()
@@ -176,7 +177,8 @@ class Repository:
                     "id": article.guid,
                     "title": article.title,
                     "url": article.url,
-                    "content": article.description or ""
+                    "content": article.description or "",
+                    "published_at": article.published_at
                 })
         
         anthropic_articles = self.session.query(AnthropicArticle).filter(
@@ -190,7 +192,8 @@ class Repository:
                     "id": article.guid,
                     "title": article.title,
                     "url": article.url,
-                    "content": article.markdown or article.description or ""
+                    "content": article.markdown or article.description or "",
+                    "published_at": article.published_at
                 })
         
         if limit:
@@ -198,11 +201,18 @@ class Repository:
         
         return articles
     
-    def create_digest(self, article_type: str, article_id: str, url: str, title: str, summary: str) -> Optional[Digest]:
+    def create_digest(self, article_type: str, article_id: str, url: str, title: str, summary: str, published_at: Optional[datetime] = None) -> Optional[Digest]:
         digest_id = f"{article_type}:{article_id}"
         existing = self.session.query(Digest).filter_by(id=digest_id).first()
         if existing:
             return None
+        
+        if published_at:
+            if published_at.tzinfo is None:
+                published_at = published_at.replace(tzinfo=timezone.utc)
+            created_at = published_at
+        else:
+            created_at = datetime.now(timezone.utc)
         
         digest = Digest(
             id=digest_id,
@@ -210,7 +220,8 @@ class Repository:
             article_id=article_id,
             url=url,
             title=title,
-            summary=summary
+            summary=summary,
+            created_at=created_at
         )
         self.session.add(digest)
         self.session.commit()
