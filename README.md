@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # AI News Aggregator - Live Build Repository
 
 This repository accompanies my 3-hour live coding session where I build a complete AI-powered news aggregator from scratch. This is a **private repository** containing valuable implementation details and deployment strategies used in production environments.
@@ -48,3 +49,6 @@ Traditional tutorials show you the "right way" to do things. This video shows yo
 - Build muscle memory through hands-on practice
 
 **The most valuable learning happens when you struggle, reference the code, and push through to the next checkpoint.**
+=======
+# AI_NEWS_AGGREGATOR
+>>>>>>> a7d4135a34b19a6d74b9dca4ab28521a322297f1
